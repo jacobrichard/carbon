@@ -4,6 +4,7 @@ from twisted.internet import reactor
 from twisted.internet.protocol import DatagramProtocol
 from twisted.internet.error import ConnectionDone
 from twisted.protocols.basic import LineOnlyReceiver, Int32StringReceiver
+from twisted.web.resource import Resource
 from carbon import log, events, state, management
 from carbon.conf import settings
 from carbon.regexlist import WhiteList, BlackList
@@ -116,6 +117,21 @@ class MetricPickleReceiver(MetricReceiver, Int32StringReceiver):
 
       self.metricReceived(metric, datapoint)
 
+class MetricHTTPReceiver(MetricReceiver, Resource):
+    isLeaf = True
+    def render_GET(self, request):
+        return "<html>POST Metrics to Me</html>"
+
+    def render_POST(self, request):
+        data = request.content.getvalue()
+        request.setResponseCode(500)
+        for line in data.strip().split('\n'):
+            metric, value, timestamp = line.strip().split()
+            datapoint = ( float(timestamp), float(value) )
+            self.metricReceived(metric, datapoint)
+        else:
+            request.setResponseCode(200)
+        return ""
 
 class CacheManagementHandler(Int32StringReceiver):
   MAX_LENGTH = 1024 ** 3 # 1mb

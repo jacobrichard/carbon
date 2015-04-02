@@ -19,6 +19,8 @@ from twisted.application.internet import TCPServer, TCPClient, UDPServer
 from twisted.internet.protocol import ServerFactory
 from twisted.python.components import Componentized
 from twisted.python.log import ILogObserver
+from twisted.web.server import Site
+
 # Attaching modules to the global state module simplifies import order hassles
 from carbon import state, events, instrumentation, util
 from carbon.exceptions import CarbonConfigException
@@ -124,17 +126,22 @@ def createRelayService(config):
 
 
 def setupReceivers(root_service, settings):
-  from carbon.protocols import MetricLineReceiver, MetricPickleReceiver, MetricDatagramReceiver
+  from carbon.protocols import (MetricLineReceiver, MetricPickleReceiver, MetricDatagramReceiver,
+    MetricHTTPReceiver)
 
   for protocol, interface, port in [
       (MetricLineReceiver, settings.LINE_RECEIVER_INTERFACE, settings.LINE_RECEIVER_PORT),
-      (MetricPickleReceiver, settings.PICKLE_RECEIVER_INTERFACE, settings.PICKLE_RECEIVER_PORT)
+      (MetricPickleReceiver, settings.PICKLE_RECEIVER_INTERFACE, settings.PICKLE_RECEIVER_PORT),
     ]:
     if port:
       factory = ServerFactory()
       factory.protocol = protocol
       service = TCPServer(port, factory, interface=interface)
       service.setServiceParent(root_service)
+
+  factory = Site(MetricHTTPReceiver())
+  service = TCPServer(settings.HTTP_RECEIVER_PORT, factory, interface=settings.HTTP_RECEIVER_INTERFACE)
+  service.setServiceParent(root_service)
 
   if settings.ENABLE_UDP_LISTENER:
       service = UDPServer(int(settings.UDP_RECEIVER_PORT),
